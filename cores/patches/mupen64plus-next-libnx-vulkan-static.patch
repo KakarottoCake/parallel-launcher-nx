@@ -1,0 +1,86 @@
+diff --git a/mupen64plus-video-paraLLEl/parallel-rdp/util/timer.cpp b/mupen64plus-video-paraLLEl/parallel-rdp/util/timer.cpp
+index d6b0c9f..3a8b038 100644
+--- a/mupen64plus-video-paraLLEl/parallel-rdp/util/timer.cpp
++++ b/mupen64plus-video-paraLLEl/parallel-rdp/util/timer.cpp
+@@ -107,7 +107,8 @@ int64_t get_current_time_nsecs()
+ 	return int64_t(double(li.QuadPart) * static_qpc_freq.inv_freq);
+ #else
+ 	struct timespec ts = {};
+-#ifdef ANDROID
++/* newlib on Horizon, like Bionic, has no CLOCK_MONOTONIC_RAW. */
++#if defined(ANDROID) || defined(__SWITCH__)
+ 	constexpr auto timebase = CLOCK_MONOTONIC;
+ #else
+ 	constexpr auto timebase = CLOCK_MONOTONIC_RAW;
+diff --git a/mupen64plus-video-paraLLEl/parallel-rdp/volk/volk.c b/mupen64plus-video-paraLLEl/parallel-rdp/volk/volk.c
+index db3baab..98fa7e9 100644
+--- a/mupen64plus-video-paraLLEl/parallel-rdp/volk/volk.c
++++ b/mupen64plus-video-paraLLEl/parallel-rdp/volk/volk.c
+@@ -11,6 +11,11 @@
+ 	#else
+ 		typedef int (__stdcall* FARPROC)(void);
+ 	#endif
++#elif defined(__SWITCH__)
++/* Horizon links the Vulkan driver statically; there is no loader to dlopen.
++ * Callers use volkInitializeCustom() with the ICD entry point instead. */
++extern VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
++vk_icdGetInstanceProcAddr(VkInstance instance, const char* name);
+ #else
+ #	include <dlfcn.h>
+ #endif
+@@ -44,7 +49,12 @@ static PFN_vkVoidFunction vkGetDeviceProcAddrStub(void* context, const char* nam
+ 
+ VkResult volkInitialize(void)
+ {
+-#if defined(_WIN32)
++#if defined(__SWITCH__)
++	/* Static driver: resolve straight through the linked-in ICD. */
++	vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)vk_icdGetInstanceProcAddr;
++	if (!vkGetInstanceProcAddr)
++		return VK_ERROR_INITIALIZATION_FAILED;
++#elif defined(_WIN32)
+ 	HMODULE module = LoadLibraryA("vulkan-1.dll");
+ 	if (!module)
+ 		return VK_ERROR_INITIALIZATION_FAILED;
+diff --git a/mupen64plus-video-paraLLEl/parallel-rdp/vulkan/context.cpp b/mupen64plus-video-paraLLEl/parallel-rdp/vulkan/context.cpp
+index e16a421..61f4b44 100644
+--- a/mupen64plus-video-paraLLEl/parallel-rdp/vulkan/context.cpp
++++ b/mupen64plus-video-paraLLEl/parallel-rdp/vulkan/context.cpp
+@@ -27,7 +27,13 @@
+ #include <algorithm>
+ #include <string.h>
+ 
+-#ifndef _WIN32
++#if defined(__SWITCH__)
++/* Horizon has no dynamic loader. The Vulkan driver (NVK from nxvk) is linked
++ * statically, so its ICD entry point is resolved at link time instead of
++ * being dlopen'd. */
++extern "C" VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
++vk_icdGetInstanceProcAddr(VkInstance instance, const char *name);
++#elif !defined(_WIN32)
+ #include <dlfcn.h>
+ #elif defined(_WIN32)
+ #define WIN32_LEAN_AND_MEAN
+@@ -90,7 +96,12 @@ bool Context::init_loader(PFN_vkGetInstanceProcAddr addr)
+ 
+ 	if (!addr)
+ 	{
+-#ifndef _WIN32
++#if defined(__SWITCH__)
++		/* Static driver: go straight to the ICD entry point. */
++		addr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(vk_icdGetInstanceProcAddr);
++		if (!addr)
++			return false;
++#elif !defined(_WIN32)
+ 		static void *module;
+ 		if (!module)
+ 		{
+@@ -115,7 +126,7 @@ bool Context::init_loader(PFN_vkGetInstanceProcAddr addr)
+ 		addr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(module, "vkGetInstanceProcAddr"));
+ 		if (!addr)
+ 			return false;
+-#else
++#elif defined(_WIN32)
+ 		static HMODULE module;
+ 		if (!module)
+ 		{

@@ -1,0 +1,29 @@
+<brls:AppletFrame
+    iconInterpolation="linear"
+    footerHidden="false">
+
+    <brls:TabFrame
+        id="nx/tabs"
+        title="ParaLLEl Launcher NX"
+        icon="@res/img/app_icon.png">
+
+        <brls:Tab label="Library">
+            <LibraryTab />
+        </brls:Tab>
+
+        <brls:Tab label="Browse">
+            <BrowseTab />
+        </brls:Tab>
+
+        <brls:Separator />
+
+        <brls:Tab label="Account">
+            <AccountTab />
+        </brls:Tab>
+
+        <brls:Tab label="Settings">
+            <SettingsTab />
+        </brls:Tab>
+
+    </brls:TabFrame>
+</brls:AppletFrame>

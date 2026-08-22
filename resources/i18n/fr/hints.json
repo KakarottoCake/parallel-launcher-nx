@@ -1,0 +1,13 @@
+{
+    "ok": "OK",
+    "back": "Retour",
+    "exit": "Quitter",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "input": "Saisie",
+    "left": "Gauche",
+    "right": "Droite",
+    "on": "Activé",
+    "off": "Désactivé",
+    "exit_hint": "Maintenir pour quitter"
+}

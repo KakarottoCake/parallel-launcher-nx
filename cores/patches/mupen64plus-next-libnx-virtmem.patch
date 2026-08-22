@@ -1,0 +1,90 @@
+diff --git a/switch/mman.h b/switch/mman.h
+index 6a5166e..447a979 100644
+--- a/switch/mman.h
++++ b/switch/mman.h
+@@ -21,37 +21,74 @@ extern "C"
+ #define MAP_ANONYMOUS 0x20
+ 
+ #define MAP_FAILED ((void *)-1)
+-void* ptr_rw = NULL;
++
++/* Port fix: libnx removed virtmemReserve() in favour of an explicit
++ * find-then-reserve pair guarded by the virtmem lock. Keeping the reservation
++ * handle around is what lets munmap() give the address space back. */
++static void*               ptr_rw         = NULL;
++static VirtmemReservation* ptr_rw_reserve = NULL;
+ 
+ static inline void *mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset)
+ {
+     (void)fd;
+     (void)offset;
++    (void)prot;
++    (void)flags;
+ 
+     size_t size = (len + 0xFFF) &~ 0xFFF;
+-	ptr_rw = virtmemReserve(size);
+-    if (R_SUCCEEDED(svcMapProcessMemory(ptr_rw, envGetOwnProcessHandle(), (u64)addr, size)))
+-    {
+-        return ptr_rw;
+-    }
+-    else
++
++    virtmemLock();
++    ptr_rw = virtmemFindAslr(size, 0);
++    if (ptr_rw)
++        ptr_rw_reserve = virtmemAddReservation(ptr_rw, size);
++    virtmemUnlock();
++
++    if (!ptr_rw || !ptr_rw_reserve)
+     {
+-        printf("[NXJIT]: Jit failed!\n");
+-        return (void*)-1;
++        printf("[NXJIT]: no address space for a %zu byte JIT region\n", size);
++        ptr_rw = NULL;
++        return MAP_FAILED;
+     }
++
++    if (R_SUCCEEDED(svcMapProcessMemory(ptr_rw, envGetOwnProcessHandle(), (u64)addr, size)))
++        return ptr_rw;
++
++    virtmemLock();
++    virtmemRemoveReservation(ptr_rw_reserve);
++    virtmemUnlock();
++    ptr_rw_reserve = NULL;
++    ptr_rw         = NULL;
++
++    printf("[NXJIT]: Jit failed!\n");
++    return MAP_FAILED;
+ }
+ 
+ static inline int mprotect(void *addr, size_t len, int prot)
+ {
++    (void)addr;
++    (void)len;
++    (void)prot;
+     return 0;
+ }
+ 
+ static inline int munmap(void *addr, size_t len)
+ {
+     size_t size = (len + 0xFFF) &~ 0xFFF;
+-    svcUnmapProcessMemory(ptr_rw, envGetOwnProcessHandle(), (u64)addr, size);
++
++    if (ptr_rw)
++        svcUnmapProcessMemory(ptr_rw, envGetOwnProcessHandle(), (u64)addr, size);
++
++    if (ptr_rw_reserve)
++    {
++        virtmemLock();
++        virtmemRemoveReservation(ptr_rw_reserve);
++        virtmemUnlock();
++        ptr_rw_reserve = NULL;
++    }
++
++    ptr_rw = NULL;
+     printf("[NXJIT]: Jit closed\n");
+-    
++
+     return 0;
+ }
+ 

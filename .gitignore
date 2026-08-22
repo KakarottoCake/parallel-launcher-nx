@@ -1,0 +1,30 @@
+# Build output
+build/
+build_switch/
+bin/
+*.elf
+*.nro
+*.nacp
+*.o
+*.a
+*.d
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs and runtime artifacts
+*.log
+
+# Third-party core repositories (fetched/patched via cores/build_cores.sh)
+cores/mupen64plus-next/
+cores/nxvk/
+cores/parallel-n64/
+
+# Test binaries
+/tmp/parallel_launcher_tests

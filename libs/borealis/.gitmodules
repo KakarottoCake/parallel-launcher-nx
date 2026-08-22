@@ -1,0 +1,6 @@
+[submodule "library/lib/extern/glfw"]
+	path = library/lib/extern/glfw
+	url = https://github.com/xfangfang/glfw.git
+[submodule "library/lib/extern/SDL3"]
+	path = library/lib/extern/SDL3
+	url = https://github.com/XITRIX/SDL.git

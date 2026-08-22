@@ -1,0 +1,24 @@
+diff --git a/switch/rust/build-std-sysroot.sh b/switch/rust/build-std-sysroot.sh
+index e88d8dd..c6b778c 100755
+--- a/switch/rust/build-std-sysroot.sh
++++ b/switch/rust/build-std-sysroot.sh
+@@ -22,11 +22,16 @@ printf '[package]\nname="stdsr"\nversion="0.0.0"\nedition="2021"\n[lib]\ncrate-t
+ cargo +nightly build --release -Zbuild-std=core,alloc,std,panic_abort --target "$TGT"
+ 
+ # Assemble the sysroot
+-DEPS=/tmp/stdsr/target/$TGT/release/deps
++# Cargo has moved where -Zbuild-std leaves its artifacts: they used to sit in
++# target/$TGT/release/deps, and on cargo 1.99 they are under
++# target/$TGT/release/build/<crate>/<hash>/out. Search the whole target-triple
++# directory instead of assuming either layout. Only that subtree is searched,
++# so host-architecture rlibs under target/release cannot leak in.
++TARGET_DIR=/tmp/stdsr/target/$TGT
+ rm -rf "$SYSROOT"
+ mkdir -p "$SYSROOT/lib/rustlib/$TGT/lib"
+-cp -f "$DEPS"/*.rlib  "$SYSROOT/lib/rustlib/$TGT/lib/" 2>/dev/null || true
+-cp -f "$DEPS"/*.rmeta "$SYSROOT/lib/rustlib/$TGT/lib/" 2>/dev/null || true
++find "$TARGET_DIR" \( -name '*.rlib' -o -name '*.rmeta' \) -type f \
++  -exec cp -f {} "$SYSROOT/lib/rustlib/$TGT/lib/" \;
+ for d in "$RUSTC_SYSROOT/lib/rustlib"/*; do
+   b=$(basename "$d")
+   [ "$b" = "$TGT" ] && continue
